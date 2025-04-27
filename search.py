@@ -1,4 +1,5 @@
 import sys
+import heapq
 from collections import deque
 
 DIRECTIONS = [
@@ -136,3 +137,40 @@ if __name__ == '__main__':
         else:
             print(f"No goal is reachable; {nodes_created}")
 
+def heuristic(a, goals):
+    return min(abs(a[0] - g[0]) + abs(a[1] - g[1]) for g in goals)
+
+def gbfs(grid, start, goals, rows, cols):
+    heap = []
+    visited = set()
+    parent = {}
+
+    h = heuristic(start, goals)
+    heapq.heappush(heap, (h, start))
+    visited.add(start)
+    parent[start] = None
+
+    nodes_created = 1
+
+    while heap:
+        _, current = heapq.heappop(heap)
+
+        if current in goals:
+            path = reconstruct_path(parent, current)
+            return current, nodes_created, path
+
+        x, y = current
+        for dx, dy, move in DIRECTIONS:
+            nx, ny = x + dx, y + dy
+            neighbor = (nx, ny)
+
+            if (0 <= nx < rows and 0 <= ny < cols and
+                neighbor not in visited and grid[nx][ny] != '#'):
+
+                h = heuristic(neighbor, goals)
+                heapq.heappush(heap, (h, neighbor))
+                visited.add(neighbor)
+                parent[neighbor] = (current, move)
+                nodes_created += 1
+
+    return None, nodes_created, None
