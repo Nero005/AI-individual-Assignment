@@ -40,19 +40,17 @@ def parse_input_file(filename):
 def build_grid(rows, cols, start, goals, walls):
     grid = [['' for _ in range(cols)] for _ in range(rows)]
 
-    for (row, col, w, h) in walls:
-        for dr in range(h):
-            for dc in range(w):
-                r = row + dr
-                c =col + dc
-                if 0 <= r < rows and 0 <= c < cols:
-                    grid[r][c] = '#'
+    for (x, y, w, h) in walls:
+        for dx in range(h):
+            for dy in range(w):
+                if 0 <= x + dx < rows and 0 <= y + dy < cols:
+                    grid[x + dx][y + dy] = '#'
 
     for (x, y) in goals:
-        grid[y][x] = 'G'
+        grid[x][y] = 'G'
 
     sx, sy = start
-    grid[sy][sx] = 'S'
+    grid[sx][sy] = 'S'
 
     return grid
 
@@ -81,13 +79,13 @@ def bfs(grid, start, goals, rows, cols):
             path = reconstruct_path(parent, current)
             return current, nodes_created, path
 
-        r, c = current
-        for dr, dc, move in DIRECTIONS:
-            nr, nc = r + dr, c + dc
-            neighbor = (nr, nc)
+        x, y = current
+        for dx, dy, move in DIRECTIONS:
+            nx, ny = x + dx, y + dy
+            neighbor = (nx, ny)
 
-            if (0 <= nr < rows and 0 <= nc < cols and
-                neighbor not in visited and grid[nr][nc] != '#'):
+            if (0 <= nx < rows and 0 <= ny < cols and
+                neighbor not in visited and grid[nx][ny] != '#'):
 
                 queue.append(neighbor)
                 visited.add(neighbor)
