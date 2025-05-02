@@ -3,10 +3,10 @@ import heapq
 from collections import deque
 
 DIRECTIONS = [
-    (0, 1, 'DOWN'),
-    (1, 0, 'RIGHT'),
-    (-1, 0, 'LEFT'),
-    (0, -1, 'UP')
+    (1, 0, 'DOWN'),
+    (0, 1, 'RIGHT'),
+    (0, -1, 'LEFT'),
+    (-1, 0, 'UP')
 ]
 
 def parse_input_file(filename):
@@ -14,35 +14,54 @@ def parse_input_file(filename):
         lines = [line.strip() for line in f if line.strip()]
 
     declared_rows, declared_cols = eval(lines[0])
+    # print("declared_rows: ", declared_rows)
     start = eval(lines[1])
     goals = [eval(g.strip()) for g in lines[2].split('|')]
     walls = [eval(line) for line in lines[3:]]
 
+    # print("walls: ", walls)
+
+    # print("start[0], start[1]: ", start[0], start[1])
+
+    # for g in goals:
+    #     print("g[0], g[1]: ", g[0], g[1])
+
     max_row = max(
-        start[0],
-        *(g[0] for g in goals),
-        *(x + h - 1 for x, y, w, h in walls)
-    )
-    max_col = max(
         start[1],
         *(g[1] for g in goals),
-        *(y + w - 1 for x, y, w, h in walls)
+        *(y + h - 1 for x, y, w, h in walls)
+    )
+    max_col = max(
+        start[0],
+        *(g[0] for g in goals),
+        *(x + w - 1 for x, y, w, h in walls)
     )
 
     rows = max(declared_rows, max_row + 1)
+    # print("max_row: ", max_row)
     cols = max(declared_cols, max_col + 1)
 
     return rows, cols, start, goals, walls
 
 def build_grid(rows, cols, start, goals, walls):
     grid = [['' for _ in range(cols)] for _ in range(rows)]
+    # for g in grid:
+    #     print("grid: ", g)
+    counter = 0
     for (x, y, w, h) in walls:
-        for dx in range(h):
-            for dy in range(w):
-                if 0 <= x + dx < rows and 0 <= y + dy < cols:
-                    grid[x + dx][y + dy] = '#'
+        # print(x, y, w, h)
+        counter += 1
+        for dx in range(w):
+            for dy in range(h):
+                if 0 <= y + dy < rows and 0 <= x + dx < cols:
+                    grid[y + dy][x + dx] = '#'
+                    #grid[y + dy][x + dx] = counter
+                    # for g in grid:
+                    #     print("grid: ", g)
+                    # print("\n")
     for (x, y) in goals:
-        grid[x][y] = 'G'
+        # print("x,y: ", x, y)
+        grid[y][x] = 'G'
     sx, sy = start
     grid[sx][sy] = 'S'
     return grid
@@ -76,7 +95,10 @@ def bfs(grid, start, goals, rows, cols):
         for dx, dy, move in DIRECTIONS:
             nx, ny = x + dx, y + dy
             neighbor = (nx, ny)
-            if (0 <= nx < rows and 0 <= ny < cols and neighbor not in visited and grid[nx][ny] != '#'):
+            # print("row: ", rows)
+            # print("col: ", cols)
+            if (0 <= nx < cols and 0 <= ny < rows and neighbor 
+                not in visited and grid[ny][nx] != '#'):
                 queue.append(neighbor)
                 visited.add(neighbor)
                 visited_order.append(neighbor)
@@ -264,6 +286,9 @@ if __name__ == '__main__':
 
         rows, cols, start, goals, walls = parse_input_file(filename)
         grid = build_grid(rows, cols, start, goals, walls)
+
+        # for g in grid:
+        #     print("grid: ", g)
 
         if method == 'BFS':
             goal, nodes_created, path, visited_order = bfs(grid, start, set(goals), rows, cols)
