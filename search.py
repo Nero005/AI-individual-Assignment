@@ -3,24 +3,21 @@ import heapq
 from collections import deque
 
 DIRECTIONS = [
-    (0, 1, 'RIGHT'),
-    (1, 0, 'DOWN'),
-    (0, -1, 'LEFT'),
-    (-1, 0, 'UP')
+    (0, 1, 'DOWN'),
+    (1, 0, 'RIGHT'),
+    (-1, 0, 'LEFT'),
+    (0, -1, 'UP')
 ]
 
 def parse_input_file(filename):
     with open(filename, 'r') as f:
         lines = [line.strip() for line in f if line.strip()]
 
-    # Read declared grid size
     declared_rows, declared_cols = eval(lines[0])
-
     start = eval(lines[1])
     goals = [eval(g.strip()) for g in lines[2].split('|')]
     walls = [eval(line) for line in lines[3:]]
 
-    # Calculate required grid dimensions
     max_row = max(
         start[0],
         *(g[0] for g in goals),
@@ -39,239 +36,290 @@ def parse_input_file(filename):
 
 def build_grid(rows, cols, start, goals, walls):
     grid = [['' for _ in range(cols)] for _ in range(rows)]
-
-    for (row, col, w, h) in walls:
-        for dr in range(h):
-            for dc in range(w):
-                r = row + dr
-                c =col + dc
-                if 0 <= r < rows and 0 <= c < cols:
-                    grid[r][c] = '#'
-
+    for (x, y, w, h) in walls:
+        for dx in range(h):
+            for dy in range(w):
+                if 0 <= x + dx < rows and 0 <= y + dy < cols:
+                    grid[x + dx][y + dy] = '#'
     for (x, y) in goals:
-        grid[y][x] = 'G'
-
+        grid[x][y] = 'G'
     sx, sy = start
-    grid[sy][sx] = 'S'
-
+    grid[sx][sy] = 'S'
     return grid
 
 def reconstruct_path(parent, end):
     path = []
     while parent[end] is not None:
-        end, move = parent [end]
+        end, move = parent[end]
         path.append(move)
     return list(reversed(path))
 
 def bfs(grid, start, goals, rows, cols):
-    queue = deque()
-    visited = set()
-    parent = {}
-
-    queue.append(start)
-    visited.add(start)
-    parent[start] = None
-
-    nodes_created = 1
+    queue = deque([start])
+    visited = set([start])
+    visited_order = [start]
+    parent = {start: None}
+    nodes_explored = 0
 
     while queue:
         current = queue.popleft()
-
-        if current in set(goals):
-            path = reconstruct_path(parent, current)
-            return current, nodes_created, path
-
-        r, c = current
-        for dr, dc, move in DIRECTIONS:
-            nr, nc = r + dr, c + dc
-            neighbor = (nr, nc)
-
-            if (0 <= nr < rows and 0 <= nc < cols and
-                neighbor not in visited and grid[nr][nc] != '#'):
-
-                queue.append(neighbor)
-                visited.add(neighbor)
-                parent[neighbor] = (current, move)
-                nodes_created += 1
-
-    return None, nodes_created, None
-
-def dfs(grid, start, goals, rows, cols):
-    stack = []
-    visited = set()
-    parent = {}
-
-    stack.append(start)
-    visited.add(start)
-    parent[start] = None
-
-    nodes_created = 1
-
-    while stack:
-        current = stack.pop()
+        nodes_explored += 1
 
         if current in goals:
             path = reconstruct_path(parent, current)
-            return current, nodes_created, path
+            return current, nodes_explored, path, visited_order
+
+        x, y = current
+        for dx, dy, move in DIRECTIONS:
+            neighbor = (x + dx, y + dy)
+            if 0 <= neighbor[0] < rows and 0 <= neighbor[1] < cols and neighbor not in visited and grid[neighbor[0]][neighbor[1]] != '#':
+                queue.append(neighbor)
+                visited.add(neighbor)
+                visited_order.append(neighbor)
+                parent[neighbor] = (current, move)
+
+    return None, nodes_explored, None, visited_order
+
+def dfs(grid, start, goals, rows, cols):
+    stack = [start]
+    visited = set()
+    visited_order = []
+    parent = {start: None}
+    nodes_explored = 0
+
+    while stack:
+        current = stack.pop()
+        if current in visited:
+            continue
+
+        visited.add(current)
+        visited_order.append(current)
+        nodes_explored += 1
+
+        if current in goals:
+            path = reconstruct_path(parent, current)
+            return current, nodes_explored, path, visited_order
 
         x, y = current
         for dx, dy, move in reversed(DIRECTIONS):
             nx, ny = x + dx, y + dy
-            neighbor = (nx, ny)
+            if 0 <= ny < rows and 0 <= nx < cols and (nx, ny) not in visited and grid[ny][nx] != '#':
+                stack.append((nx, ny))
+                parent[(nx, ny)] = (current, move)
 
-            if (0 <= nx < rows and 0 <= ny < cols and
-                neighbor not in visited and grid[nx][ny] != '#'):
+    return None, nodes_explored, None, visited_order
 
-                stack.append(neighbor)
-                visited.add(neighbor)
-                parent[neighbor] = (current, move)
-                nodes_created += 1
-
-    return None, nodes_created, None
 
 def heuristic(a, goals):
     return min(abs(a[0] - g[0]) + abs(a[1] - g[1]) for g in goals)
 
 def gbfs(grid, start, goals, rows, cols):
-    heap = []
-    visited = set()
-    parent = {}
-
-    h = heuristic(start, goals)
-    heapq.heappush(heap, (h, start))
-    visited.add(start)
-    parent[start] = None
-
-    nodes_created = 1
+    heap = [(heuristic(start, goals), start)]
+    visited = set([start])
+    visited_order = [start]
+    parent = {start: None}
+    nodes_explored = 0
 
     while heap:
         _, current = heapq.heappop(heap)
+        nodes_explored += 1
 
         if current in goals:
             path = reconstruct_path(parent, current)
-            return current, nodes_created, path
+            return current, nodes_explored, path, visited_order
 
         x, y = current
         for dx, dy, move in DIRECTIONS:
-            nx, ny = x + dx, y + dy
-            neighbor = (nx, ny)
-
-            if (0 <= nx < rows and 0 <= ny < cols and
-                neighbor not in visited and grid[nx][ny] != '#'):
-
-                h = heuristic(neighbor, goals)
-                heapq.heappush(heap, (h, neighbor))
+            neighbor = (x + dx, y + dy)
+            if 0 <= neighbor[0] < rows and 0 <= neighbor[1] < cols and neighbor not in visited and grid[neighbor[0]][neighbor[1]] != '#':
+                heapq.heappush(heap, (heuristic(neighbor, goals), neighbor))
                 visited.add(neighbor)
+                visited_order.append(neighbor)
                 parent[neighbor] = (current, move)
-                nodes_created += 1
 
-    return None, nodes_created, None
+    return None, nodes_explored, None, visited_order
 
 def asearch(grid, start, goals, rows, cols):
-    heap = []
-    visited = {}
-    parent = {}
-
-    h = heuristic(start, goals)
-    heapq.heappush(heap, (h, 0, start))
-    visited[start] = 0
-    parent[start] = None
-
-    node_created = 1
+    heap = [(heuristic(start, goals), 0, start)]
+    visited = {start: 0}
+    visited_order = [start]
+    parent = {start: None}
+    nodes_explored = 0
 
     while heap:
         f, g, current = heapq.heappop(heap)
+        nodes_explored += 1
 
         if current in goals:
             path = reconstruct_path(parent, current)
-            return current,  node_created, path
+            return current, nodes_explored, path, visited_order
 
         x, y = current
         for dx, dy, move in DIRECTIONS:
-            nx, ny = x + dx, y + dy
-            neighbor = (nx, ny)
-
-            if (0 <= nx < rows and 0 <= ny < cols and grid[nx][ny] != '#'):
+            neighbor = (x + dx, y + dy)
+            if 0 <= neighbor[0] < rows and 0 <= neighbor[1] < cols and grid[neighbor[0]][neighbor[1]] != '#':
                 new_g = g + 1
-
                 if neighbor not in visited or new_g < visited[neighbor]:
                     visited[neighbor] = new_g
-                    h = heuristic(neighbor, goals)
-                    f = new_g + h
-                    heapq.heappush(heap, (f, new_g, neighbor))
+                    visited_order.append(neighbor)
+                    heapq.heappush(heap, (new_g + heuristic(neighbor, goals), new_g, neighbor))
                     parent[neighbor] = (current, move)
-                    node_created += 1
 
-    return None, node_created, None
+    return None, nodes_explored, None, visited_order
 
-def CUS1(grid, start, goals, rows, cols, depth_limit=10):
-    stack = [(start, 0)]
-    visited = set()
-    parent = {start: None}
-    nodes_created = 1
+def BID_BFS(grid, start, goals, rows, cols):
 
-    while stack:
-        current, depth = stack.pop()
+    if not goals:
+        return None, 0, None, []
 
-        if current in goals:
-            path = reconstruct_path(parent, current)
-            return current, nodes_created, path
+    goal = next(iter(goals)) 
 
-        if depth >= depth_limit:
-            continue
+    forward_queue = deque([start])
+    forward_visited = {start: None}
+    forward_path = []
 
-        x, y = current
-        for dx, dy, move in reversed(DIRECTIONS):
-            nx, ny = x + dx, y + dy
+    backward_queue = deque([goal])
+    backward_visited = {goal: None}
+    backward_path = []
+
+    visited_order = [start, goal]
+    nodes_created = 2
+
+    while forward_queue and backward_queue:
+        current_forward = forward_queue.popleft()
+        fx, fy = current_forward
+        for dx, dy, move in DIRECTIONS:
+            nx, ny = fx + dx, fy + dy
             neighbor = (nx, ny)
-
-            if (0 <= nx < rows and 0 <= ny < cols and
-                neighbor not in visited and grid[nx][ny] != '#'):
-
-                visited.add(neighbor)
-                parent[neighbor] = (current, move)
-                stack.append((neighbor, depth + 1))
+            if (0 <= nx < rows and 0 <= ny < cols and grid[nx][ny] != '#' and neighbor not in forward_visited):
+                forward_queue.append(neighbor)
+                forward_visited[neighbor] = (current_forward, move)
+                visited_order.append(neighbor)
                 nodes_created += 1
+                if neighbor in backward_visited:
+                    meet_point = neighbor
+                    fpath = []
+                    n = meet_point
+                    while forward_visited[n] is not None:
+                        n, m = forward_visited[n]
+                        fpath.append(m)
+                    fpath.reverse()
+                    bpath = []
+                    n = meet_point
+                    while backward_visited[n] is not None:
+                        n, m = backward_visited[n]
+                        bpath.append(m)
+                    direction_map = {'UP': 'DOWN', 'DOWN': 'UP', 'LEFT': 'RIGHT', 'RIGHT': 'LEFT'}
+                    bpath = [direction_map[m] for m in bpath]
+                    return meet_point, nodes_created, fpath + bpath, visited_order
 
-    return None, nodes_created, None
+        current_backward = backward_queue.popleft()
+        bx, by = current_backward
+        for dx, dy, move in DIRECTIONS:
+            nx, ny = bx + dx, by + dy
+            neighbor = (nx, ny)
+            if (0 <= nx < rows and 0 <= ny < cols and grid[nx][ny] != '#' and neighbor not in backward_visited):
+                backward_queue.append(neighbor)
+                backward_visited[neighbor] = (current_backward, move)
+                visited_order.append(neighbor)
+                nodes_created += 1
+                if neighbor in forward_visited:
+                    meet_point = neighbor
+                    fpath = []
+                    n = meet_point
+                    while forward_visited[n] is not None:
+                        n, m = forward_visited[n]
+                        fpath.append(m)
+                    fpath.reverse()
+                    bpath = []
+                    n = meet_point
+                    while backward_visited[n] is not None:
+                        n, m = backward_visited[n]
+                        bpath.append(m)
+                    direction_map = {'UP': 'DOWN', 'DOWN': 'UP', 'LEFT': 'RIGHT', 'RIGHT': 'LEFT'}
+                    bpath = [direction_map[m] for m in bpath]
+                    return meet_point, nodes_created, fpath + bpath, visited_order
 
-def CUS2(grid, start, goals, rows, cols, epsilon=2):
-    open_list = []
-    heapq.heappush(open_list, (0, 0, start))
-    visited = set()
-    parent = {start: None}
-    g_cost = {start: 0}
-    nodes_created = 1
+    return None, nodes_created, None, visited_order
+
+def reconstruct_path_bidir(parent_start, parent_goal, meet_point):
+    path_start = []
+    node = meet_point
+    while parent_start[node] is not None:
+        node, move = parent_start[node]
+        path_start.append(move)
+    path_start.reverse()
+
+    path_goal = []
+    node = meet_point
+    while parent_goal[node] is not None:
+        node, move = parent_goal[node]
+        direction_map = {'UP': 'DOWN', 'DOWN': 'UP', 'LEFT': 'RIGHT', 'RIGHT': 'LEFT'}
+        path_goal.append(direction_map[move])
+
+    return path_start + path_goal   
+
+def BID_GBFS(grid, start, goals, rows, cols, epsilon=2):
+    goal = list(goals)[0]
+    open_start = [(0, 0, start)]
+    open_goal = [(0, 0, goal)]
+    g_start = {start: 0}
+    g_goal = {goal: 0}
+    parent_start = {start: None}
+    parent_goal = {goal: None}
+    visited_start = set()
+    visited_goal = set()
+    visited_order = []
+    nodes_created = 2
     count = 0
 
-    while open_list:
-        _, _, current = heapq.heappop(open_list)
+    while open_start and open_goal:
+        _, _, current_s = heapq.heappop(open_start)
+        visited_start.add(current_s)
+        visited_order.append(current_s)
 
-        if current in goals:
-            path = reconstruct_path(parent, current)
-            return current, nodes_created, path
+        if current_s in visited_goal:
+            path = reconstruct_path_bidir(parent_start, parent_goal, current_s)
+            return current_s, nodes_created, path, visited_order
 
-        visited.add(current)
-        x, y = current
-
+        x, y = current_s
         for dx, dy, move in DIRECTIONS:
             nx, ny = x + dx, y + dy
             neighbor = (nx, ny)
-
-            if (0 <= nx < rows and 0 <= ny < cols and
-                grid[nx][ny] != '#' and neighbor not in visited):
-
-                tentative_g = g_cost[current] + 1
-
-                if neighbor not in g_cost or tentative_g < g_cost[neighbor]:
-                    g_cost[neighbor] = tentative_g
-                    f = tentative_g + epsilon * heuristic(neighbor, goals)
+            if (0 <= nx < rows and 0 <= ny < cols and grid[nx][ny] != '#' and neighbor not in visited_start):
+                tentative_g = g_start[current_s] + 1
+                if neighbor not in g_start or tentative_g < g_start[neighbor]:
+                    g_start[neighbor] = tentative_g
+                    f = tentative_g + epsilon * heuristic(neighbor, [goal])
                     count += 1
-                    heapq.heappush(open_list, (f, count, neighbor))
-                    parent[neighbor] = (current, move)
+                    heapq.heappush(open_start, (f, count, neighbor))
+                    parent_start[neighbor] = (current_s, move)
                     nodes_created += 1
 
-    return None, nodes_created, None
+        _, _, current_g = heapq.heappop(open_goal)
+        visited_goal.add(current_g)
+        visited_order.append(current_g)
+
+        if current_g in visited_start:
+            path = reconstruct_path_bidir(parent_start, parent_goal, current_g)
+            return current_g, nodes_created, path, visited_order
+
+        x, y = current_g
+        for dx, dy, move in DIRECTIONS:
+            nx, ny = x + dx, y + dy
+            neighbor = (nx, ny)
+            if (0 <= nx < rows and 0 <= ny < cols and grid[nx][ny] != '#' and neighbor not in visited_goal):
+                tentative_g = g_goal[current_g] + 1
+                if neighbor not in g_goal or tentative_g < g_goal[neighbor]:
+                    g_goal[neighbor] = tentative_g
+                    f = tentative_g + epsilon * heuristic(neighbor, [start])
+                    count += 1
+                    heapq.heappush(open_goal, (f, count, neighbor))
+                    parent_goal[neighbor] = (current_g, move)
+                    nodes_created += 1
+
+    return None, nodes_created, None, visited_order
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -284,17 +332,17 @@ if __name__ == '__main__':
         grid = build_grid(rows, cols, start, goals, walls)
 
         if method == 'BFS':
-            goal, nodes_created, path = bfs(grid, start, goals, rows, cols)
+            goal, nodes_created, path, visited_order = bfs(grid, start, set(goals), rows, cols)
         elif method == 'DFS':
-            goal, nodes_created, path = dfs(grid, start, set(goals), rows, cols)
+            goal, nodes_created, path, visited_order = dfs(grid, start, set(goals), rows, cols)
         elif method == 'GBFS':
-            goal, nodes_created, path = gbfs(grid, start, set(goals), rows, cols)
+            goal, nodes_created, path, visited_order = gbfs(grid, start, set(goals), rows, cols)
         elif method == 'AS':
-            goal, nodes_created, path = asearch(grid, start, set(goals), rows, cols)
-        elif method == 'CUS1':
-            goal, nodes_created, path = CUS1(grid, start, set(goals), rows, cols)
-        elif method == 'CUS2':
-            goal, nodes_created, path = CUS2(grid, start, set(goals), rows, cols)
+            goal, nodes_created, path, visited_order = asearch(grid, start, set(goals), rows, cols)
+        elif method == 'BID_BFS':
+            goal, nodes_created, path, visited_order = BID_BFS(grid, start, set(goals), rows, cols)
+        elif method == 'BID_GBFS':
+            goal, nodes_created, path, visited_order = BID_GBFS(grid, start, set(goals), rows, cols)
         else:
             print(f"Method {method} not implemented yet.")
             sys.exit()
@@ -302,6 +350,8 @@ if __name__ == '__main__':
         print(f"{filename} {method}")
         if goal:
             print(f"{goal} {nodes_created}")
-            print(','.join(action.lower()for action in path))
+            print(','.join(action.lower() for action in path))
+            print("Visited nodes:")
+            print("visited:", visited_order)
         else:
             print(f"No goal is reachable; {nodes_created}")
